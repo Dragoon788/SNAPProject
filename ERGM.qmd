@@ -1,0 +1,92 @@
+#Attempt 1 at this ERGM and vis!
+
+
+```{r}
+#| echo: false
+#| output: false
+#| message: false
+
+rm(list=ls())
+
+# Lab 3:
+# Exponential Random Graph Models (ERGMs)
+
+# Clear your environment
+rm(list=ls())
+
+# Install packages below if you do not have them:
+# -------------------------------------------------
+if (!"statnet" %in% installed.packages()) install.packages("statnet") # For fitting ERGMs
+if (!"igraph" %in% installed.packages()) install.packages("igraph") # For network plotting
+if (!"texreg" %in% installed.packages()) install.packages("texreg") # For printing "nicer" model output
+
+library(statnet)
+
+# -------------------------------------------------------------------------------------------------
+# Set the working directory
+# Session > Set Working Directory > To Source File Location
+# -------------------------------------------------------------------------------------------------
+list.files() # List the files in the current working directory to see if you're in the right directory
+
+```
+
+```{r}
+#| echo: false
+#| output: false
+#| message: false
+
+######################## PART I: Building and Visualizing the Networks ########################
+# ----------------------------------------------------------------------------------------------------
+# Dependent variable:
+# Responses to the question:
+#weight is the overlapping viewers!
+ov_viewerEdgelist <- read.csv("Updated&Cleaned-Edgelist.csv")
+# View the first rows of the edgelist to make sure it imported correctly:
+head(ov_viewerEdgelist)
+
+# Convert the edgelist to a network object in statnet format:
+overlap_view <- as.network.matrix(ov_viewerEdgelist, matrix.type = "edgelist")
+# View a summary of the network object
+overlap_view
+
+# Independent variables:
+# Load node attributes, and store them in the advice network object we have created
+overlap_view |> network::set.vertex.attribute("Channel_Name",
+                          value = read.csv("new_updated_channels_with_count.csv")$Channel_Name) # Categorical variable for channel name. I dont think this one is all that neccesary since they are all unique values but you never know so I added it in lol
+
+overlap_view |> network::set.vertex.attribute("Language",
+                          value = read.csv("new_updated_channels_with_count.csv")$Language) # Categorical variable for lang
+
+overlap_view |> network::set.vertex.attribute("Tags",
+                          value = read.csv("new_updated_channels_with_count.csv")$Tags) # Categorical variable for tags
+
+overlap_view |> network::set.vertex.attribute("Last_Played_Game",
+                          value = read.csv("new_updated_channels_with_count.csv")$Last_Played_Game)
+# Categorical variable for Last game played
+
+overlap_view |> network::set.vertex.attribute("Game_ID",
+                          value = read.csv("new_updated_channels_with_count.csv")$`Game_ID`) # Categorical variable for Game ID, The ID of the game that the user plays. The game is not updated if the ID isn’t a game ID that Twitch recognizes.
+
+overlap_view |> network::set.vertex.attribute("ChannelID",
+                          value = read.csv("new_updated_channels_with_count.csv")$ChannelID)
+# Categorical variable for Channel_ID, Unique ID given to each user
+
+overlap_view |> network::set.vertex.attribute("Count",
+                          value = read.csv("new_updated_channels_with_count.csv")$Count)
+# Categorical variable for Count, number of unique viewers
+
+
+
+overlap_view # These 7 variables should now be listed as vertex attributes when viewing the summary of the network
+```
+```{r}
+# # Double-check the values for all of the node variables
+#### Note: looks good to me! It's just a lot so I commented it out!
+
+# network::get.vertex.attribute(overlap_view,"Channel_Name")
+# network::get.vertex.attribute(overlap_view,"Tags")
+# network::get.vertex.attribute(overlap_view,"Last_Played_Game")
+# network::get.vertex.attribute(overlap_view,"Game_ID")
+# network::get.vertex.attribute(overlap_view,"ChannelID")
+# network::get.vertex.attribute(overlap_view,"Count")
+```
