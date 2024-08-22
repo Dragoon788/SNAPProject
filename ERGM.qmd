@@ -142,35 +142,11 @@ summary(overlap_view ~ nodematch("Tags"))        # Number of ties between users 
 
 summary(overlap_view ~ nodematch("Last_Played_Game"))        # Number of ties between people who have the same last game played
 ```
+#SPACE FOR MOD SCORE DESCRIPTIVE ANYLITICS AND VIS FOR IT
 
+#SPACE FOR Betweenness Centrality & Bridge Detection Algorithms DESCPRITIVE ANYLITICS AND BRIDGE DETECTION
 
-
-### simple model; a complex model attempt was made but no progress
-```{r}
-# #| message: false
-# #| warning: false
-# model1 <- ergm(overlap_view ~
-#                # Structural patterns
-#                 edges
-#               # mutual
-#                + gwidegree(log(2), fixed = T)       # Inverted preferential attachment (indegree)
-#                + gwodegree(2, fixed = T, cutoff = 10)    # Inverted preferential attachment (outdegree)
-#                + dgwesp(log(2), type = "OTP", fixed = T, cutoff = 10)    # A modified version of Outgoing Two Path(i->j + i->k->j) structures. Geometrically weighted version of transitivity
-#               
-#                # Node attribute effects
-#                + nodeocov("Count")               # Covariance between out-degree of nodes and attributes of nodes
-#                + nodematch("Language")          # Homophily on a categorical variable
-#                + nodematch("Tags")             # Homophily on a categorical variable
-#                + nodematch("Last_Played_Game")
-#                # Constraints on network
-#                , constraints =~ bd(maxout=20)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
-#                # Control settings for MCMC-MLE algorithm
-#                , control = control.ergm(MCMC.effectiveSize = 50,
-#                                         seed = 42)
-# )
-# summary(model1)
-```
-
+#simple model; a complex model attempt was made but no progress
 ```{r}
 #adding in things like gwidegree, gwodegree, gwodegree, dgwesp is too complex for the model right now
 model_simple <- ergm(overlap_view ~ edges 
@@ -185,11 +161,56 @@ model_simple <- ergm(overlap_view ~ edges
 )
 summary(model_simple)
 ```
+
+#model diagnostics for simple model
 ```{r}
-par(mar=c(1,1,1,1))
+par(mar=c(2,2,2,2))
 mcmc.diagnostics(model_simple)
 ```
 
+#Prep for t-test (will delete later)
+```{r}
+#| warning: false
+# -------------------------------------------------------------------------------------------------
+# Goodness of fit test - will display in RStudio
+# Check how well the estimated model captures certain features of the observed network, for example triangles in the network.
+# -------------------------------------------------------------------------------------------------
+library('igraph')
+
+overlap_view_igraph <- graph.adjacency(as.matrix.network(overlap_view)) # make an igraph network object from statnet network object
+#overlap_view_igraph <- set_vertex_attr(overlap_view_igraph,"female",value = read.csv("femaleNode.csv")$female)
+net_layout <- layout_with_fr(overlap_view_igraph) # Calculates and stores a spring-embedded layout
+                                           # We will re-use this same layout for each plot, so nodes are always in the same place
+
+sim <- simulate(model_simple, burnin=100000, interval=100000, nsim=50, verbose=T)  # Uses the ergm model to simulate a null model
+# Plot the first of the simulated networks
+sim_net1 <- igraph::graph.adjacency(as.matrix.network(sim[[1]]))
+igraph::plot.igraph(sim_net1,layout=net_layout,edge.color="grey",  
+                    vertex.color = 'grey',edge.arrow.size=.1)                                                               
+# Plot the 10th simulated network
+sim_net10 <- igraph::graph.adjacency(as.matrix.network(sim[[10]]))
+igraph::plot.igraph(sim_net10,layout=net_layout,edge.color="purple",  
+                    vertex.color = 'grey',edge.arrow.size=.1)
+```
+
+
+#T-test (will delete later)
+```{r}
+# Model 2:
+model_simple.tridist <- sapply(1:50, function(x) summary(sim[[x]] ~triangle)) # Extracts the triangle data from the simulated networks
+hist(model_simple.tridist,xlim=c(0,1000),breaks=10)  
+
+overlap_view.tri <- summary(overlap_view ~ triangle)                                    # Stores the number of observed triangles
+overlap_view.tri
+
+# Plots that triangle distribution as a histogram, change xlim to change the x-axis range if necessary
+arrows(overlap_view.tri,20, overlap_view.tri, 0.5, col="red", lwd=3)                    # Adds an arrow to the plotted histogram
+c(obs=overlap_view.tri,mean=mean(model_simple.tridist),sd=sd(model_simple.tridist),
+  tstat=abs(mean(model_simple.tridist)-overlap_view.tri)/sd(model_simple.tridist))
+```
+**Note: Not sure if I did this wrong but my t-stat is extremely bad (2307.520), not sure what I did wrong and the histogram is not showing up**
+
+#goodness of fit 
 ```{r}
 #| warning: false
 # Model 2:
