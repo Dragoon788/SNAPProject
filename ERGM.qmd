@@ -1,5 +1,401 @@
-#Attempt 1 at this ERGM and vis!
+---
+title: "Final Proj"
+author: "Francis Velasco, Tosin Okoh, Evan Bertis-Sample"
+date: today 
+format: 
+  pdf:
+      toc: true
+      toc-depth: 4
+      shift-heading-level-by: 2
+      fig-pos: "H"
+      fig-cap-location: top
+      geometry:
+        - top=1in
+        - right=.8in
+        - bottom=1in
+        - left=.8in
+      link-citations: true
+      linkcolor: blue
+      include-in-header: 
+        text: |
+          \usepackage{fancyhdr}
+          \usepackage{titling}
+          \pagestyle{fancy}
+          \fancyhf{}
+          \renewcommand\maketitle{
+            \fancyhead[C]{
+              \thetitle
+              \ifx \theauthor\empty  \else \ – \theauthor \fi
+              \ifx \thedate\empty  \else \ – \thedate \ \fi
+            }
+          }
+          \fancyfoot[C]{\thepage}
+---
 
+## File Initialization
+
+```{r}
+#| echo: false
+#| output: false
+#| message: false
+#| label: load packages
+
+# Start with a clear environment
+rm(list=ls())
+
+# Loading packages 
+library(dplyr)
+library(igraph)
+library(ggplot2)
+library(poweRlaw)
+library(readr)
+library(tidytext)
+library(tidygraph)
+library(ggraph)
+library(tidyverse)
+library(topicmodels)
+library(textstem)
+library(udpipe)
+
+```
+
+```{r}
+#| echo: false
+#| output: false
+#| message: false
+#| label: load data
+
+## Loading Edgelist Data for our Twitch Social Network
+## Edges represent viewership overlap between Twitch streamers
+setwd("C:/Users/coolb/OneDrive/Documents/SNA Class/FinalProj")
+
+edgelist <- read.csv("Updated&Cleaned-Edgelist.csv")
+
+# generate a labeled graph from edgelist
+# data_graph represents the Twitch Social Network
+data_graph <- graph_from_data_frame(edgelist) |>
+  as_tbl_graph() |>
+  as.undirected()
+```
+
+## Calculating Centrality
+
+```{r}
+#| echo: false
+#| output: false
+#| message: false
+#| label: giant component
+
+# Isolating the largest component of the graph to do analysis
+data_comp <- components(data_graph)
+giantGraph_data <- data_graph %>%
+  induced_subgraph(., which(data_comp$membership == which.max(data_comp$csize)))
+vcount(data_graph) ## total # number of nodes/twitch channels
+ecount(data_graph) ## total # number of edges/shared viewers
+
+```
+
+### Centrality Metrics Table of Top 10 Nodes in each metric
+
+```{r}
+#| label: centrality metrics
+
+#### TAKEN FROM LAB 2
+
+# For this part, you switch 'igraph' to 'sna' package because we are going to use 
+# some functions that only are available in sna package
+# As a first step, create a 'sna' graph object from an 'igraph' object
+sna_data <-
+  igraph::as_adjacency_matrix(giantGraph_data, sparse = FALSE) %>% network::as.network.matrix()
+
+# this detaching is a necessary step since the two packages have some same function names
+# R is often confused
+detach('package:igraph')
+library(statnet)
+
+# We will compute centralities based on 'network' package
+# First, create a dataframe to store the centrality information
+centralities_data <- data.frame('node_name' = as.character(network.vertex.names(sna_data)))
+
+####
+
+# Calculating the centrality metrics for all the nodes/Streamers in our network
+## Presented in a table arranged by the betweeness centrality
+
+centralities_data$betweenness <- igraph::betweenness(
+  giantGraph_data,
+  directed = FALSE, # Adjust this based on whether your graph is directed or not
+  normalized = TRUE # Adjust if you want normalized betweenness scores
+  )
+centralities_data$degree <- degree(sna_data, cmode = 'freeman')/2
+centralities_data$closeness <-
+  igraph::closeness(
+    giantGraph_data, 
+    mode = 'all'
+    )
+centralities_data$eigen <-
+  igraph::eigen_centrality(giantGraph_data)$vector
+
+# Select top 10 nodes by betweenness
+centralities_data |> 
+  dplyr::slice_max(order_by = betweenness, n = 10)
+
+#Discussion_Betweeness <- betweenness(giantGraph_data)
+#Discussion_Betweeness <- as.data.frame(Discussion_Betweeness)
+
+#set.seed (3952)
+#layout1 <- layout.fruchterman.reingold(giantGraph_data, niter = 500)
+#V(giantGraph_data)$size=betweenness(giantGraph_data)/200
+#E(giantGraph_data)$color <- "grey"
+
+#plot(giantGraph_data)
+```
+
+### Plotting Betweenness Centralities
+
+```{r}
+#reload igraph library again because we detached it earlier
+library(igraph)
+
+# Compute betweenness centrality
+betweenness_centrality <- centralities_data$betweenness
+
+# Identify top 10 nodes by betweenness centrality
+top_nodes <- order(betweenness_centrality, decreasing = TRUE)[1:10]
+
+# Create a vector for labels, with NA for nodes not in the top 10
+vertex_labels <- rep(NA, vcount(giantGraph_data))  # Use vcount(giantGraph_data) to get the number of vertices
+vertex_labels[top_nodes] <- V(giantGraph_data)$name[top_nodes]  # Assign labels to the top 10 nodes
+
+# Plot the graph
+plot(giantGraph_data, 
+     vertex.size = betweenness_centrality * 10,  # Adjust node size
+     vertex.label = vertex_labels,  # Display labels only for top 10 nodes
+     main = "Node Betweenness Centrality",
+     layout = layout.fruchterman.reingold)  # Use Fruchterman-Reingold layout
+
+```
+
+### Plotting Bridges:
+
+```{r}
+# Find bridges in the graph
+bridges_edges <- bridges(data_graph)
+
+# Create a data frame to store bridge information
+bridges_df <- data.frame(
+  edge = as.character(bridges_edges),
+  from = sapply(bridges_edges, function(e) ends(data_graph, e)[1]),
+  to = sapply(bridges_edges, function(e) ends(data_graph, e)[2])
+)
+
+# Function to calculate the number of components created by removing an edge
+bridge_scores <- sapply(bridges_edges, function(e) {
+  subgraph <- delete_edges(data_graph, e)
+  length(components(subgraph)$csize)
+})
+
+# Add the scores to the data frame
+bridges_df$score <- bridge_scores
+
+# Rank the bridges based on their scores
+bridges_df <- bridges_df[order(-bridges_df$score), ]
+
+# Display the ranked bridges
+print(bridges_df)
+
+# Create a vector to define edge colors and widths
+edge_colors <- rep("gray", ecount(data_graph))  # Default color for non-bridges
+edge_widths <- rep(1, ecount(data_graph))  # Default width for non-bridges
+
+# Highlight bridges
+edge_colors[E(data_graph) %in% bridges_edges] <- "red"
+edge_widths[E(data_graph) %in% bridges_edges] <- 20  # Thicker lines for bridges
+
+# Plot the graph
+plot(data_graph,
+     edge.color = edge_colors,
+     edge.width = edge_widths,
+     vertex.size = 5,
+     vertex.label = NA,
+     main = "Nodes that Act as Bridges")
+
+```
+
+## Louvain Community Detection Method
+
+```{r}
+#| label: community detection
+
+library(igraph)
+
+## Calculate cluster information for both betweenness and louvain method
+cluster <- giantGraph_data %>% cluster_louvain()
+
+## Group clusters together to make it easier to see
+COMP = components(data_graph)
+LC = which(COMP$membership == 1)
+LargeComp = induced_subgraph(data_graph, LC)
+
+LC.gn.comm <- cluster_louvain(LargeComp)
+LC_Grouped = LargeComp
+E(LC_Grouped)$weight = 1
+for(i in unique(membership(LC.gn.comm))) {
+    GroupV = which(membership(LC.gn.comm) == i)
+    LC_Grouped = add_edges(LC_Grouped, combn(GroupV, 2), attr=list(weight=6))
+} 
+```
+
+dplyr::summarize(
+
+num_nodes = n(),
+
+)
+
+```{r}
+#| label: community detection 2
+
+length(cluster) # number of clusters
+
+# Find the size of each cluster
+sizes(cluster)  
+
+# Get the membership vector from the cluster object
+membership_vector <- membership(cluster)
+
+# Create a data frame with node information and community membership
+node_info <- data.frame(
+  node = V(giantGraph_data)$name,
+  community = membership_vector
+)
+
+# Group the nodes by their community
+nodes_by_community <- node_info %>%
+  dplyr::group_by(community) %>%
+  dplyr::summarize(nodes = paste(node, collapse = ", "))
+
+# Print the nodes in each community
+print(nodes_by_community)
+```
+
+## Calculating Modularity Score
+
+```{r}
+#| label: modularity
+
+
+# Calculating modularity score
+print("Calculated Modularity Score for Twitch Viewership Overlap:")
+modularity(cluster)
+```
+
+Interpret the modularity score of your results of community detection.
+
+A modularity score quantifies the strength of division of a network into modules. It is the fraction of edges that fall in a given cluster minus the expected fraction if edges were distributed at random. Modularity scores range form (-1, 1)
+
+My modularity scores for both the Viewership Overlap network is 0.50. This is a fairly high value as described before, meaning there are dense connections between nodes in a cluster and sparse connections between random nodes. This also means that there are fairly distinct communities found in our data.
+
+## Plot the communities! **(6 points)**
+
+```{r}
+#| label: community detection 3
+
+
+#### TAKEN FROM LAB 2
+
+# Visualize clusters - that puts colored blobs around the nodes in the same community.
+# You may want to remove vertex.label=NA to figure out what terms are clustered.
+cluster %>% plot(
+  .,
+  giantGraph_data,
+  # layout = layout_with_gem(.),
+  layout = layout_with_fr(giantGraph_data),
+  edge.arrow.size = .3,
+  vertex.size = 4,
+  vertex.label = NA,
+  vertex.color = adjustcolor(membership(.), alpha.f = .3),
+  vertex.label.cex = .5,
+  vertex.label.color = 'black',
+  mark.groups = by(seq_along(membership(.)), membership(.), invisible),
+  mark.shape = 1 / 4,
+  mark.col = rainbow(length(.), alpha = .1),
+  mark.border = NA
+)
+
+#####
+
+GN.Comm = simplify(contract(LargeComp, membership(LC.gn.comm)))
+D = unname(degree(GN.Comm))
+
+set.seed(1234)
+par(mar=c(0,0,0,0))
+plot(GN.Comm, vertex.size=sqrt(sizes(LC.gn.comm)),
+    vertex.label=1:43, vertex.cex = 0.8,
+    vertex.color=round(log(D))+1)
+
+set.seed(1234)
+LO = layout_with_fr(LC_Grouped)
+colors <- rainbow(max(membership(LC.gn.comm)))
+par(mar=c(0,0,0,0))
+plot(LC.gn.comm, LargeComp, layout=LO,
+    vertex.size = 6, 
+    vertex.color=colors[membership(LC.gn.comm)], 
+    vertex.label = NA, edge.width = 1)
+
+```
+
+```{r}
+#| label: degree distribution
+# Examine the in-degree distribution
+data.frame(density = giantGraph_data %>% 
+             degree_distribution(mode = "in")) |> 
+  dplyr::mutate(degree = row_number()) |> 
+  ggplot(aes(x = degree, y = density)) +
+  geom_bar(stat = "identity") +
+  ggtitle("In-degree Distribution for our Streamer Data") +
+  ylab("Density") +
+  xlab("In-degree")+
+  theme_minimal()
+
+# CCDF - Complementary Cumulative Distribution Function
+# Plot a log-log plot of in-degree distribution
+data.frame(density = giantGraph_data %>% 
+             degree_distribution(mode = "in", cumulative = TRUE)) |> 
+  dplyr::mutate(degree = row_number()) |>
+  ggplot(aes(x = degree, y = density)) +
+  geom_line() +
+  scale_x_log10() +
+  scale_y_log10() +
+  ggtitle("Log-Log Plot of In-degree for our Streamer Data") +
+  ylab("CCDF") +
+  xlab("In-degree")+
+  theme_minimal()
+
+
+# Fit a power law to the degree distribution
+# The output of the power.law.fit() function tells us what the exponent of the power law is ($alpha)
+# and the log-likelihood of the parameters used to fit the power law distribution ($logLik)
+# Also, it performs a Kolmogov-Smirnov test to test whether the given degree distribution could have
+# been drawn from the fitted power law distribution.
+# The function thus gives us the test statistic ($KS.stat) and p-vaule ($KS.p) for that test
+
+set.seed(1)
+my_power_law_dist = poweRlaw::rpldis(200, xmin = 1, alpha = 3)-1  ## lest create a random power law distribution
+
+# my_power_law_dist
+in_power_data <- giantGraph_data %>%
+  degree.distribution(., mode = 'in')  %>%
+  fit_power_law(.)
+in_power_data
+
+# finally we will do a Kolmogov-Smirnov test against power law distribution that we created earlier
+# here you will see a p-value
+giantGraph_data %>%
+  degree.distribution(., mode = 'in') |> 
+  ks.test(my_power_law_dist)
+```
+
+------------------------------------------------------------------------
 
 ```{r}
 #| echo: false
@@ -81,6 +477,7 @@ overlap_view |> network::set.vertex.attribute("followers",
 
 overlap_view # These 8 variables should now be listed as vertex attributes when viewing the summary of the network
 ```
+
 ```{r}
 # # Double-check the values for all of the node variables
 #### Note: looks good to me! It's just a lot so I commented it out!
@@ -95,11 +492,10 @@ overlap_view # These 8 variables should now be listed as vertex attributes when 
 # network::get.vertex.attribute(overlap_view,"followers")
 ```
 
-
 ##VIS WILL GO HERE WHERE THE TEAMMATES DO ITTTTT
 
-
 **LET ME KNOW IF YALL THINK ANYTHING ELSE ATTRIBUTE LOOKING INTO WISE SHOULD BE ADDED IN HERE!!! WORK ON NODEICOV LATERRR**
+
 ```{r}
 # ----------------------------------------------------------------------------
 ######################## PART II: Build the ERGM models ########################
@@ -149,11 +545,13 @@ summary(overlap_view ~ nodeicov("followers"))        #assess whether users with 
 
 summary(overlap_view ~ nodeocov("followers"))      
 ```
+
 #SPACE FOR MOD SCORE DESCRIPTIVE ANYLITICS AND VIS FOR IT
 
 #SPACE FOR Betweenness Centrality & Bridge Detection Algorithms DESCPRITIVE ANYLITICS AND BRIDGE DETECTION
 
 #simple model; a complex model attempt was made but no progress
+
 ```{r}
 #adding in things like gwidegree, gwodegree, gwodegree, dgwesp is too complex for the model right now
 model_simple <- ergm(overlap_view ~ edges 
@@ -172,12 +570,14 @@ summary(model_simple)
 ```
 
 #model diagnostics for simple model
+
 ```{r}
 par(mar=c(2,2,2,2))
 mcmc.diagnostics(model_simple)
 ```
 
 #Prep for t-test (will delete later)
+
 ```{r}
 #| warning: false
 # -------------------------------------------------------------------------------------------------
@@ -202,8 +602,8 @@ igraph::plot.igraph(sim_net10,layout=net_layout,edge.color="purple",
                     vertex.color = 'grey',edge.arrow.size=.1)
 ```
 
-
 #T-test (will delete later)
+
 ```{r}
 # Model 2:
 model_simple.tridist <- sapply(1:50, function(x) summary(sim[[x]] ~triangle)) # Extracts the triangle data from the simulated networks
@@ -217,9 +617,11 @@ arrows(overlap_view.tri,20, overlap_view.tri, 0.5, col="red", lwd=3)            
 c(obs=overlap_view.tri,mean=mean(model_simple.tridist),sd=sd(model_simple.tridist),
   tstat=abs(mean(model_simple.tridist)-overlap_view.tri)/sd(model_simple.tridist))
 ```
+
 **Note: Not sure if I did this wrong but my t-stat is extremely bad (2307.520), not sure what I did wrong and the histogram is not showing up**
 
-#goodness of fit 
+#goodness of fit
+
 ```{r}
 #| warning: false
 # Model 2:
