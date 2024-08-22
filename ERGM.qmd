@@ -179,10 +179,24 @@ model_simple <- ergm(overlap_view ~ edges
                      + nodematch("Tags")  #Homophily on tags
                      + nodematch("Last_Played_Game") #Homophily on last played games
                # Control settings for MCMC-MLE algorithm
+               , constraints =~ bd(maxout= 100000000) #it wont be an mcmc without me doing this weirdly high value
                , control = control.ergm(MCMC.effectiveSize = 50,
                                         seed = 42)
 )
 summary(model_simple)
 ```
+```{r}
+par(mar=c(1,1,1,1))
+mcmc.diagnostics(model_simple)
+```
 
-
+```{r}
+#| warning: false
+# Model 2:
+# It may take a second for this command to run.
+gof1 <- gof(model_simple, verbose=T, burnin=1e+5, interval=1e+5, control = control.gof.ergm(nsim = 50))
+# If you run below and then wouldn't see the plot, try par(mar=c(2,2,2,2))
+#dev.off()
+plot(gof1)
+gof1
+```
