@@ -62,18 +62,18 @@ overlap_view |> network::set.vertex.attribute("Tags",
 
 overlap_view |> network::set.vertex.attribute("Last_Played_Game",
                           value = read.csv("new_updated_channels_with_count.csv")$Last_Played_Game)
-# Categorical variable for Last game played
+# Last game played
 
 overlap_view |> network::set.vertex.attribute("Game_ID",
                           value = read.csv("new_updated_channels_with_count.csv")$`Game_ID`) # Categorical variable for Game ID, The ID of the game that the user plays. The game is not updated if the ID isn’t a game ID that Twitch recognizes.
 
 overlap_view |> network::set.vertex.attribute("ChannelID",
                           value = read.csv("new_updated_channels_with_count.csv")$ChannelID)
-# Categorical variable for Channel_ID, Unique ID given to each user
+#Channel_ID = Unique ID given to each user
 
 overlap_view |> network::set.vertex.attribute("Count",
                           value = read.csv("new_updated_channels_with_count.csv")$Count)
-# Categorical variable for Count, number of unique viewers
+# Count = number of unique viewers
 
 
 
@@ -85,8 +85,123 @@ overlap_view # These 7 variables should now be listed as vertex attributes when 
 
 # network::get.vertex.attribute(overlap_view,"Channel_Name")
 # network::get.vertex.attribute(overlap_view,"Tags")
+# network::get.vertex.attribute(overlap_view,"Language")
 # network::get.vertex.attribute(overlap_view,"Last_Played_Game")
 # network::get.vertex.attribute(overlap_view,"Game_ID")
 # network::get.vertex.attribute(overlap_view,"ChannelID")
 # network::get.vertex.attribute(overlap_view,"Count")
+```
+
+
+##VIS WILL GO HERE WHERE THE TEAMMATES DO ITTTTT
+
+
+**LET ME KNOW IF YALL THINK ANYTHING ELSE ATTRIBUTE LOOKING INTO WISE SHOULD BE ADDED IN HERE!!! WORK ON NODEICOV LATERRR**
+```{r}
+# ----------------------------------------------------------------------------
+######################## PART II: Build the ERGM models ########################
+#
+# R vignette for more details: https://cran.r-project.org/web/packages/ergm/ergm.pdf
+# ----------------------------------------------------------------------------
+#detach(package:igraph) # Remove the 'igraph' package from your environment. 
+library(statnet)
+options(ergm.loglik.warn_dyads=FALSE) #Whether or not a warning should be issued when sample space constraints render the observed number of dyads ill-defined
+
+# Ergm Terms are statistics: They are some deterministic function of the ties, node attributes, and edge covariates of a network.
+help("ergm-terms",package = "ergm") # Documentation that contains definitions for all of the terms we are using
+                                    # ex. what does "mutual" test and how is it calculated
+# We will use the ergm-terms to perform hypothesis testing using ERGMs
+# But we can note that any of the ERGM terms can also be examined directly for your observed network, by creating a formula in R
+
+# Look at Endogenous statistics: terms based on only ties in the advice network
+summary(overlap_view ~ edges)                     # Number of edges (ties)
+#dont really need mutual, the ties are not too likely to be mutual
+summary(overlap_view ~ odegree(0:10))              # Outdegree distribution. (# of nodes with outdegree of 0, # nodes outdegree of 1, etc., playing with this number, will increase to 10 from 5 (7:19pm 8/21))
+                                           
+summary(overlap_view ~ idegree(0:100))             # Indegree distribution. (increased to 100 from 65, will decide later whether to increase it more!)
+summary(overlap_view ~ gwodegree(log(2),fixed=T)) # One parameter summarizing outdegree distribution - tendency against outdegree hubs
+summary(overlap_view ~ gwidegree(log(2),fixed=T)) # One parameters summarizing indegree distribution - tendency against indegree hubs
+summary(overlap_view ~ desp(1:10))                 # Pairs of nodes with one shared partner, two shared partners, etc. (increasing up from 5 to 10 shared partners!)
+summary(overlap_view ~ dgwesp(log(2),fixed = T))  # One parameter summarizing 
+
+# Look at Exogenous statistics: terms based on advice ties AND other ties / node attributes
+
+# summary(overlap_view ~ nodeicov("Tags"))             # Evaluates how the presence of different tags affects the likelihood of nodes forming connections
+#   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
+
+# summary(overlap_view ~ nodeicov("Game_ID"))             # assess how 'Game_ID' attribute affect the likelihood of nodes forming connections (the gameid goes with the last game they played)
+# ###Should I remove this one??
+# #   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
+
+summary(overlap_view ~ nodeocov("Count"))             #examines whether nodes with different values of the Count attribute (number of unique viewers) have varying probabilities of being connected to other nodes. Helps determine if nodes with higher or lower viewer counts are more or less likely to have edges between them.
+
+summary(overlap_view ~ nodematch("Language"))            # Number of ties between users of same language
+#Note: Note sure if as important but will see
+
+summary(overlap_view ~ nodematch("Tags"))        # Number of ties between users of the same tag
+
+summary(overlap_view ~ nodematch("Last_Played_Game"))        # Number of ties between people who have the same last game played
+
+
+# The above are statistics - counts of these patterns for our networks
+# What fitting the ERGM model will tell is whether these counts are relatively high/low
+# in comparison to what we would expect based on random chance, controlling for the other effects in our model.
+# This type of analysis can be helpful for understanding your network, as well as troubleshooting issues with ERGM regression
+```
+
+
+
+### complex model
+
+```{r}
+#| message: false
+#| warning: false
+model1 <- ergm(overlap_view ~  
+               # Structural patterns
+               # edges
+              # mutual
+                gwidegree(log(2), fixed = T)                 # Inverted preferential attachment (indegree)
+               + gwodegree(2, fixed = T, cutoff = 10)              # Inverted preferential attachment (outdegree)
+                + dgwesp(log(2), type = "OTP", fixed = T, cutoff = 10)    # A modified version of Outgoing Two Path(i->j + i->k->j) structures. Geometrically weighted version of transitivity
+               # # Node attribute effects
+               # 
+               # 
+                + nodeocov("Count")                                    # Covariance between out-degree of nodes and attributes of nodes
+               # + nodematch("Language")                                   # Homophily on a categorical variable
+               # + nodematch("Tags")                                       # Homophily on a categorical variable
+               # + nodematch("Last_Played_Game")
+               # # Constraints on network
+               # , constraints =~ bd(maxout=10)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
+               # Control settings for MCMC-MLE algorithm
+               , control = control.ergm(MCMC.effectiveSize = 50,
+                                        seed = 42)
+) 
+summary(model1) 
+```
+
+
+# ```{r}
+# #| message: false
+# #| warning: false
+# model1 <- ergm(overlap_view ~  
+#                # Structural patterns
+#                 edges
+#               # mutual
+#                + gwidegree(log(2), fixed = T)                 # Inverted preferential attachment (indegree)
+#                + gwodegree(2, fixed = T, cutoff = 10)              # Inverted preferential attachment (outdegree)
+#                + dgwesp(log(2), type = "OTP", fixed = T, cutoff = 10)    # A modified version of Outgoing Two Path(i->j + i->k->j) structures. Geometrically weighted version of transitivity
+#                # Node attribute effects
+# 
+# 
+#                + nodeocov("Count")                                    # Covariance between out-degree of nodes and attributes of nodes
+#                + nodematch("Language")                                   # Homophily on a categorical variable
+#                + nodematch("Tags")                                       # Homophily on a categorical variable
+#                + nodematch("Last_Played_Game")
+#                # Constraints on network
+#                , constraints =~ bd(maxout=10)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
+#                # Control settings for MCMC-MLE algorithm
+#                , control = control.ergm(MCMC.effectiveSize = 50,
+#                                         seed = 42)
+# ) 
+# summary(model1) 
 ```
