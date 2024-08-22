@@ -127,7 +127,7 @@ summary(overlap_view ~ dgwesp(log(2),fixed = T))  # One parameter summarizing
 # Look at Exogenous statistics: terms based on advice ties AND other ties / node attributes
 
 # summary(overlap_view ~ nodeicov("Tags"))             # Evaluates how the presence of different tags affects the likelihood of nodes forming connections
-#   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
+# #   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
 
 # summary(overlap_view ~ nodeicov("Game_ID"))             # assess how 'Game_ID' attribute affect the likelihood of nodes forming connections (the gameid goes with the last game they played)
 # ###Should I remove this one??
@@ -141,67 +141,48 @@ summary(overlap_view ~ nodematch("Language"))            # Number of ties betwee
 summary(overlap_view ~ nodematch("Tags"))        # Number of ties between users of the same tag
 
 summary(overlap_view ~ nodematch("Last_Played_Game"))        # Number of ties between people who have the same last game played
-
-
-# The above are statistics - counts of these patterns for our networks
-# What fitting the ERGM model will tell is whether these counts are relatively high/low
-# in comparison to what we would expect based on random chance, controlling for the other effects in our model.
-# This type of analysis can be helpful for understanding your network, as well as troubleshooting issues with ERGM regression
 ```
 
 
 
-### complex model
-
+### simple model; a complex model attempt was made but no progress
 ```{r}
-#| message: false
-#| warning: false
-model1 <- ergm(overlap_view ~  
-               # Structural patterns
-               # edges
-              # mutual
-                gwidegree(log(2), fixed = T)                 # Inverted preferential attachment (indegree)
-               + gwodegree(2, fixed = T, cutoff = 10)              # Inverted preferential attachment (outdegree)
-                + dgwesp(log(2), type = "OTP", fixed = T, cutoff = 10)    # A modified version of Outgoing Two Path(i->j + i->k->j) structures. Geometrically weighted version of transitivity
-               # # Node attribute effects
-               # 
-               # 
-                + nodeocov("Count")                                    # Covariance between out-degree of nodes and attributes of nodes
-               # + nodematch("Language")                                   # Homophily on a categorical variable
-               # + nodematch("Tags")                                       # Homophily on a categorical variable
-               # + nodematch("Last_Played_Game")
-               # # Constraints on network
-               # , constraints =~ bd(maxout=10)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
-               # Control settings for MCMC-MLE algorithm
-               , control = control.ergm(MCMC.effectiveSize = 50,
-                                        seed = 42)
-) 
-summary(model1) 
-```
-
-
-# ```{r}
 # #| message: false
 # #| warning: false
-# model1 <- ergm(overlap_view ~  
+# model1 <- ergm(overlap_view ~
 #                # Structural patterns
 #                 edges
 #               # mutual
-#                + gwidegree(log(2), fixed = T)                 # Inverted preferential attachment (indegree)
-#                + gwodegree(2, fixed = T, cutoff = 10)              # Inverted preferential attachment (outdegree)
+#                + gwidegree(log(2), fixed = T)       # Inverted preferential attachment (indegree)
+#                + gwodegree(2, fixed = T, cutoff = 10)    # Inverted preferential attachment (outdegree)
 #                + dgwesp(log(2), type = "OTP", fixed = T, cutoff = 10)    # A modified version of Outgoing Two Path(i->j + i->k->j) structures. Geometrically weighted version of transitivity
+#               
 #                # Node attribute effects
-# 
-# 
-#                + nodeocov("Count")                                    # Covariance between out-degree of nodes and attributes of nodes
-#                + nodematch("Language")                                   # Homophily on a categorical variable
-#                + nodematch("Tags")                                       # Homophily on a categorical variable
+#                + nodeocov("Count")               # Covariance between out-degree of nodes and attributes of nodes
+#                + nodematch("Language")          # Homophily on a categorical variable
+#                + nodematch("Tags")             # Homophily on a categorical variable
 #                + nodematch("Last_Played_Game")
 #                # Constraints on network
-#                , constraints =~ bd(maxout=10)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
+#                , constraints =~ bd(maxout=20)                           # This constraint enforces the maximum outdegree is 10 *edit as seen fit*!!
 #                # Control settings for MCMC-MLE algorithm
 #                , control = control.ergm(MCMC.effectiveSize = 50,
 #                                         seed = 42)
-# ) 
-# summary(model1) 
+# )
+# summary(model1)
 ```
+
+```{r}
+#adding in things like gwidegree, gwodegree, gwodegree, dgwesp is too complex for the model right now
+model_simple <- ergm(overlap_view ~ edges 
+                     + nodeocov("Count") # Covariance between out-degree of nodes and attributes of nodes
+                     + nodematch("Language") # Homophily on lang
+                     + nodematch("Tags")  #Homophily on tags
+                     + nodematch("Last_Played_Game") #Homophily on last played games
+               # Control settings for MCMC-MLE algorithm
+               , control = control.ergm(MCMC.effectiveSize = 50,
+                                        seed = 42)
+)
+summary(model_simple)
+```
+
+
