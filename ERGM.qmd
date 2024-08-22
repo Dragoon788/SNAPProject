@@ -75,9 +75,11 @@ overlap_view |> network::set.vertex.attribute("Count",
                           value = read.csv("new_updated_channels_with_count.csv")$Count)
 # Count = number of unique viewers
 
+overlap_view |> network::set.vertex.attribute("followers",
+                          value = read.csv("new_updated_channels_with_count.csv")$followers) #with followers
 
 
-overlap_view # These 7 variables should now be listed as vertex attributes when viewing the summary of the network
+overlap_view # These 8 variables should now be listed as vertex attributes when viewing the summary of the network
 ```
 ```{r}
 # # Double-check the values for all of the node variables
@@ -90,6 +92,7 @@ overlap_view # These 7 variables should now be listed as vertex attributes when 
 # network::get.vertex.attribute(overlap_view,"Game_ID")
 # network::get.vertex.attribute(overlap_view,"ChannelID")
 # network::get.vertex.attribute(overlap_view,"Count")
+# network::get.vertex.attribute(overlap_view,"followers")
 ```
 
 
@@ -141,6 +144,10 @@ summary(overlap_view ~ nodematch("Language"))            # Number of ties betwee
 summary(overlap_view ~ nodematch("Tags"))        # Number of ties between users of the same tag
 
 summary(overlap_view ~ nodematch("Last_Played_Game"))        # Number of ties between people who have the same last game played
+
+summary(overlap_view ~ nodeicov("followers"))        #assess whether users with higher follower counts are more likely to receive connections from others.
+
+summary(overlap_view ~ nodeocov("followers"))      
 ```
 #SPACE FOR MOD SCORE DESCRIPTIVE ANYLITICS AND VIS FOR IT
 
@@ -150,6 +157,8 @@ summary(overlap_view ~ nodematch("Last_Played_Game"))        # Number of ties be
 ```{r}
 #adding in things like gwidegree, gwodegree, gwodegree, dgwesp is too complex for the model right now
 model_simple <- ergm(overlap_view ~ edges 
+                     + nodeocov("followers")
+                     + nodeicov("followers")
                      + nodeocov("Count") # Covariance between out-degree of nodes and attributes of nodes
                      + nodematch("Language") # Homophily on lang
                      + nodematch("Tags")  #Homophily on tags
