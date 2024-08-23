@@ -492,10 +492,6 @@ overlap_view # These 8 variables should now be listed as vertex attributes when 
 # network::get.vertex.attribute(overlap_view,"followers")
 ```
 
-##VIS WILL GO HERE WHERE THE TEAMMATES DO ITTTTT
-
-**LET ME KNOW IF YALL THINK ANYTHING ELSE ATTRIBUTE LOOKING INTO WISE SHOULD BE ADDED IN HERE!!! WORK ON NODEICOV LATERRR**
-
 ```{r}
 # ----------------------------------------------------------------------------
 ######################## PART II: Build the ERGM models ########################
@@ -525,13 +521,6 @@ summary(overlap_view ~ dgwesp(log(2),fixed = T))  # One parameter summarizing
 
 # Look at Exogenous statistics: terms based on advice ties AND other ties / node attributes
 
-# summary(overlap_view ~ nodeicov("Tags"))             # Evaluates how the presence of different tags affects the likelihood of nodes forming connections
-# #   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
-
-# summary(overlap_view ~ nodeicov("Game_ID"))             # assess how 'Game_ID' attribute affect the likelihood of nodes forming connections (the gameid goes with the last game they played)
-# ###Should I remove this one??
-# #   #I WOULD HAVE TO CREAT DUMMY VARS FOR THIS!!!!!! SHOULD I DO THAT??
-
 summary(overlap_view ~ nodeocov("Count"))             #examines whether nodes with different values of the Count attribute (number of unique viewers) have varying probabilities of being connected to other nodes. Helps determine if nodes with higher or lower viewer counts are more or less likely to have edges between them.
 
 summary(overlap_view ~ nodematch("Language"))            # Number of ties between users of same language
@@ -545,10 +534,6 @@ summary(overlap_view ~ nodeicov("followers"))        #assess whether users with 
 
 summary(overlap_view ~ nodeocov("followers"))      
 ```
-
-#SPACE FOR MOD SCORE DESCRIPTIVE ANYLITICS AND VIS FOR IT
-
-#SPACE FOR Betweenness Centrality & Bridge Detection Algorithms DESCPRITIVE ANYLITICS AND BRIDGE DETECTION
 
 #simple model; a complex model attempt was made but no progress
 
@@ -576,55 +561,11 @@ par(mar=c(2,2,2,2))
 mcmc.diagnostics(model_simple)
 ```
 
-#Prep for t-test (will delete later)
-
-```{r}
-#| warning: false
-# -------------------------------------------------------------------------------------------------
-# Goodness of fit test - will display in RStudio
-# Check how well the estimated model captures certain features of the observed network, for example triangles in the network.
-# -------------------------------------------------------------------------------------------------
-library('igraph')
-
-overlap_view_igraph <- graph.adjacency(as.matrix.network(overlap_view)) # make an igraph network object from statnet network object
-#overlap_view_igraph <- set_vertex_attr(overlap_view_igraph,"female",value = read.csv("femaleNode.csv")$female)
-net_layout <- layout_with_fr(overlap_view_igraph) # Calculates and stores a spring-embedded layout
-                                           # We will re-use this same layout for each plot, so nodes are always in the same place
-
-sim <- simulate(model_simple, burnin=100000, interval=100000, nsim=50, verbose=T)  # Uses the ergm model to simulate a null model
-# Plot the first of the simulated networks
-sim_net1 <- igraph::graph.adjacency(as.matrix.network(sim[[1]]))
-igraph::plot.igraph(sim_net1,layout=net_layout,edge.color="grey",  
-                    vertex.color = 'grey',edge.arrow.size=.1)                                                               
-# Plot the 10th simulated network
-sim_net10 <- igraph::graph.adjacency(as.matrix.network(sim[[10]]))
-igraph::plot.igraph(sim_net10,layout=net_layout,edge.color="purple",  
-                    vertex.color = 'grey',edge.arrow.size=.1)
-```
-
-#T-test (will delete later)
-
-```{r}
-# Model 2:
-model_simple.tridist <- sapply(1:50, function(x) summary(sim[[x]] ~triangle)) # Extracts the triangle data from the simulated networks
-hist(model_simple.tridist,xlim=c(0,1000),breaks=10)  
-
-overlap_view.tri <- summary(overlap_view ~ triangle)                                    # Stores the number of observed triangles
-overlap_view.tri
-
-# Plots that triangle distribution as a histogram, change xlim to change the x-axis range if necessary
-arrows(overlap_view.tri,20, overlap_view.tri, 0.5, col="red", lwd=3)                    # Adds an arrow to the plotted histogram
-c(obs=overlap_view.tri,mean=mean(model_simple.tridist),sd=sd(model_simple.tridist),
-  tstat=abs(mean(model_simple.tridist)-overlap_view.tri)/sd(model_simple.tridist))
-```
-
-**Note: Not sure if I did this wrong but my t-stat is extremely bad (2307.520), not sure what I did wrong and the histogram is not showing up**
-
 #goodness of fit
 
 ```{r}
 #| warning: false
-# Model 2:
+# Simple Model:
 # It may take a second for this command to run.
 gof1 <- gof(model_simple, verbose=T, burnin=1e+5, interval=1e+5, control = control.gof.ergm(nsim = 50))
 # If you run below and then wouldn't see the plot, try par(mar=c(2,2,2,2))
